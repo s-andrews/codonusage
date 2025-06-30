@@ -126,9 +126,6 @@ def get_options():
     if not Path(options.gtf).exists():
         raise Exception("GTF path"+options.gtf+"doesn't exist")
 
-    if not Path(options.fasta).exists():
-        raise Exception("Fasta path"+options.fasta+"doesn't exist")
-
 
     return options
 
