@@ -33,7 +33,7 @@ def extract_codon_positions(cds_regions):
 
     for transcript in cds_regions:
         forward = cds_regions[transcript][1]
-        if not transcript[0] in genome_positions:
+        if not cds_regions[transcript][0] in genome_positions:
             genome_positions[cds_regions[transcript][0]] = {}
 
         transcript_position = 1
@@ -118,7 +118,6 @@ def get_options():
     parser = argparse.ArgumentParser("Prepare a genome for codon analysis")
 
     parser.add_argument("gtf", type=str, help="GTF file to parse")
-    parser.add_argument("fasta", type=str, help="Multi-Fasta File of transcript sequences")
     parser.add_argument("--outfile",type=str, help="Output file to save to", default="codon_data.dat")
 
     options = parser.parse_args()
