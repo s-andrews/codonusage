@@ -9,6 +9,7 @@ def main():
     options = get_options()
 
     bam_files = parse_bam_config(options.config)
+
     transcript_sequences = read_transcripts(options.fasta)
 
     all_results = {}
@@ -21,6 +22,11 @@ def main():
 
     write_results(all_results,options.outfile)
 
+def write_results(data,outfile):
+    pass
+
+def parse_bam_file(file,transcripts):
+    pass
 
 def parse_bam_config (file):
 
@@ -39,22 +45,22 @@ def parse_bam_config (file):
                 raise Exception(f"BAM file {bamfile} doesn't exist")
             
             if not bamfile in bam_files:
-                bam_files[bamfile] = {}
+                bam_files[bamfile] = {"filename":bamfile, "offsets": {}}
 
             seqlen = int(sections[1])
             if seqlen in bam_files[bamfile]:
                 raise Exception(f"Duplicate seq length {seqlen} for {bamfile}")
             
             else:
-                bam_files[bamfile][seqlen] = int(sections[2])
+                bam_files[bamfile]["offsets"][seqlen] = int(sections[2])
 
     if not bam_files:
         raise Exception("Found no valid BAM files in config file")
     
-    return bam_files
+    return list(bam_files.values())
 
 
-def read_transcripts(file, keepers):
+def read_transcripts(file):
 
     transcript_seqs = {}
 
@@ -70,7 +76,7 @@ def read_transcripts(file, keepers):
         line = line.strip()
 
         if line.startswith(">"):
-            if id is not None and id in keepers:
+            if id is not None:
                 transcript_seqs[id] = sequence
             sequence = ""
             id = line.split()[0][1:]
@@ -80,7 +86,7 @@ def read_transcripts(file, keepers):
             sequence += line
 
 
-    if id is not None and id in keepers:
+    if id is not None:
         transcript_seqs[id] = sequence
 
     return transcript_seqs
