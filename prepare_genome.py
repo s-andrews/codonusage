@@ -22,7 +22,7 @@ def extract_codon_positions(cds_regions):
     genome_positions = {}
 
     for transcript in cds_regions:
-        forward = cds_regions[transcript]
+        forward = cds_regions[transcript][1]
         if not transcript[0] in genome_positions:
             genome_positions[cds_regions[transcript][0]] = {}
 
@@ -38,6 +38,17 @@ def extract_codon_positions(cds_regions):
                     transcript_position += 3
 
                 codon_offset = codon_position - (codon[1]+1)
+
+
+            else:
+                codon_position = codon[1]-codon_offset
+                while codon_position >= codon[0]:
+                    genome_positions[cds_regions[transcript][0]][codon_position] = (transcript,transcript_position)
+                    codon_position -= 3
+                    transcript_position += 3
+
+                codon_offset = 0 - (codon_position - (codon[0]-1))
+
 
     for i in genome_positions["6"]:
         print(i,genome_positions["6"][i][1])
