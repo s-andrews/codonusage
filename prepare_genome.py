@@ -11,9 +11,19 @@ def main():
 
     codon_positions = extract_codon_positions(cds_regions)
 
-    # add_sequences(codon_positions, options.fasta)
+    save_codons(codon_positions, options.outfile)
 
-    # save_codons(codon_positions, options.outfile)
+
+def save_codons(codon_positions, outfile):
+
+    with open(outfile,"wt",encoding="utf8") as out:
+        for chromosome in codon_positions:
+            for position in codon_positions[chromosome]:
+                transcript,transcript_position = codon_positions[chromosome][position]
+
+                print("\t".join([str(x) for x in [chromosome,position,transcript,transcript_position]]), file=out)
+    
+
 
 
 def extract_codon_positions(cds_regions):
@@ -49,10 +59,7 @@ def extract_codon_positions(cds_regions):
 
                 codon_offset = 0 - (codon_position - (codon[0]-1))
 
-
-    for i in genome_positions["6"]:
-        print(i,genome_positions["6"][i][1])
-
+    return genome_positions
     
 
 
@@ -111,7 +118,7 @@ def get_options():
     parser = argparse.ArgumentParser("Prepare a genome for codon analysis")
 
     parser.add_argument("gtf", type=str, help="GTF file to parse")
-    parser.add_argument("fasta", type=str, help="Multi-Fasta File of chromosome sequences")
+    parser.add_argument("fasta", type=str, help="Multi-Fasta File of transcript sequences")
     parser.add_argument("--outfile",type=str, help="Output file to save to", default="codon_data.dat")
 
     options = parser.parse_args()
