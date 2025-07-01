@@ -23,17 +23,27 @@ def main():
     for bam_file in bam_files:
         print("Parsing BAM file",bam_file["filename"], file=sys.stderr, flush=True)
 
-        results = parse_bam_file(bam_file, codon_data, transcript_sequences)
+        stats,codon_counts = parse_bam_file(bam_file, codon_data, transcript_sequences)
 
-        breakpoint()
+        write_results(stats,codon_counts,bam_file)
 
-        all_results[bam_file["filename"]] = results
+def write_results(stats,codon_counts,bam_file):
 
+    outfile = bam_file["filename"]+"_codonusage.txt"
 
-    write_results(all_results,options.outfile)
+    with open(outfile,"wt",encoding="utf8") as out:
 
-def write_results(data,outfile):
-    pass
+        print("# Codonusage results", file=out)
+        print("# Filename:",bam_file["filename"], file=out)
+
+        for metric in stats:
+            print(f"# {metric}: {stats[metric]}", file=out)
+
+        print(f"Codon\tCount_A\tCount_P\tCount_E",file=out)
+
+        for codon in codon_counts["A"]:
+            print(codon,codon_counts["A"][codon],codon_counts["P"][codon],codon_counts["E"][codon], sep="\t", file=out)
+
 
 def parse_bam_file(fileinfo,codons, transcripts):
 
@@ -54,24 +64,39 @@ def parse_bam_file(fileinfo,codons, transcripts):
         "base_not_aligned": 0
     }
 
-    codon_counts = {}
+    codon_counts = {"P":{},"A":{},"E":{}}
 
     for p1 in ["G","A","T","C"]:
         for p2 in ["G","A","T","C"]:
                 for p3 in ["G","A","T","C"]:
-                        codon_counts[p1+p2+p3] = 0
+                        codon_counts["P"][p1+p2+p3] = 0
+                        codon_counts["A"][p1+p2+p3] = 0
+                        codon_counts["E"][p1+p2+p3] = 0
 
-    codon_counts["STP"] = 0
+    # Because the CDS sequences don't have the stop codon
+    # included we can't separate those so we'll do a generic
+    # STP feature to measure those
+    codon_counts["P"]["STP"] = 0
+    codon_counts["A"]["STP"] = 0
+    codon_counts["E"]["STP"] = 0
+
+    # For the P site we may have the ribosome at the start codon
+    # so we need a way to indicate that this was at the promoter
+    # we'll only get this for the A site but we'll add it to all
+    # dictionaries to make writing results easier.
+    codon_counts["P"]["TSS"] = 0
+    codon_counts["A"]["TSS"] = 0
+    codon_counts["E"]["TSS"] = 0
 
     for read in bamfile.fetch(until_eof=True):
         
         stats["total_reads"] += 1
-        if stats["total_reads"] % 100000 == 0:
-            print(f"Parsed {stats['total_reads']} reads from {file}", file=sys.stderr, flush=True)
+        if stats["total_reads"] % 1000000 == 0:
+            print(f"Parsed {stats['total_reads']/1000000}M reads from {file}", file=sys.stderr, flush=True)
 
-        # Just for testing...
-        if stats["total_reads"] == 1000000:
-            break
+        # # Just for testing...
+        # if stats["total_reads"] == 1000000:
+        #     break
 
 
         # We don't want reads which aren't aligned at all
@@ -134,27 +159,61 @@ def parse_bam_file(fileinfo,codons, transcripts):
         #     print(f"Found hit at {refpos} to {transcript}")
 
 
+        # We need to check for a stop but we need to keep going so we can still profile the
+        # A site.  We shouldn't have stop codons in the CDS, but there are cases where it
+        # happens, specifically some of the V-Genes have encoded stops at the end but the CDS
+        # includes these for some reason.
         if position == len(transcripts[transcript]):
             # It's the stop codon
-            codon_counts["STP"] += 1
-            continue
+            stats["mapped_to_codon"] += 1
+            codon_counts["P"]["STP"] += 1
 
-        if position+2 > len(transcripts[transcript])-1:
+        elif position+2 > len(transcripts[transcript])-1:
             # In some cases we can get incomplete transcripts
             # the sequence just randomly stops in the middle
             # of a codon.
             stats["incomplete_codon"] += 1
+
+        else:
+            # The offset is the offset to the P site of the ribosome
+            # so we'll pull that out first. The positions start at 1
+            # so we can go back 1 for the zero indexes of the string            
+            p_codon = transcripts[transcript][position-1:(position+2)]
+
+            if not p_codon in codon_counts["P"]:
+                stats["incomplete_codon"] += 1
+                continue
+
+            stats["mapped_to_codon"] += 1
+            codon_counts["P"][p_codon] += 1
+
+        # Now that we've got that we can go after the A and E sites
+        # We may not have them if this is the start or end of the 
+        # transcript
+
+        a_position = position-3
+        e_position = position+3
+
+        if a_position < 0:
+            codon_counts["A"]["TSS"] += 1
+        else:
+            a_codon = transcripts[transcript][a_position-1:(a_position+2)]
+            if a_codon in codon_counts["A"]:
+                codon_counts["A"][a_codon] += 1
+
+        if e_position == len(transcripts[transcript]):
+            # It's the stop codon
+            codon_counts["E"]["STP"] += 1
+        elif e_position+2 > len(transcripts[transcript])-1:
             continue
+        else:
+            e_codon = transcripts[transcript][e_position-1:(e_position+2)]
+            if e_codon in codon_counts["E"]:
+                codon_counts["E"][e_codon] += 1
             
 
-        codon = transcripts[transcript][position:(position+3)]
 
-        if not codon in codon_counts:
-            stats["incomplete_codon"] += 1
-            continue
-
-        codon_counts[codon] += 1
-
+    return stats,codon_counts
 
 
 def read_codons(file):
